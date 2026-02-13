@@ -4,6 +4,8 @@ import { UserRole } from '../types';
 import VistaCarnet from './VistaCarnet';
 // IMPORTACIÓN DE VARIABLES CENTRALIZADAS
 import { EPS_COLOMBIA, TIPOS_DOCUMENTO, GRUPOS_RH, FACTORES_RH, PARENTESCOS } from '../constants/data';
+// IMPORTACIÓN DEL SERVICIO DE REPORTE
+import { generarReporteCEZEUS } from '../services/reportePDFService';
 
 const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
   const [alumnos, setAlumnos] = useState<any[]>([]);
@@ -123,6 +125,38 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
   const getCount = (cat: string) => cat === 'TODOS' ? alumnos.length : alumnos.filter(a => a.categoria?.toUpperCase().includes(cat.toUpperCase())).length;
   const getCountStatus = (status: string) => alumnos.filter(a => a.estado?.toUpperCase() === status.toUpperCase()).length;
 
+  // FUNCIÓN PARA DESCARGAR EL PDF ACTUALIZADA CON TODOS LOS CAMPOS DE LA TABLA
+  const descargarReporteAlumnos = () => {
+    const tituloReporte = `REPORTE INTEGRAL DE ALUMNOS (${filtroCategoria} / ${filtroEstado || 'TODOS'})`;
+    
+    // 1. Columnas completas según tu esquema de base de datos
+    const columnasConfig = [
+      { header: 'DOCUMENTO', dataKey: 'doc' },
+      { header: 'ALUMNO', dataKey: 'nombre_alumno' },
+      { header: 'CATEGORÍA', dataKey: 'categoria' },
+      { header: 'RH', dataKey: 'rh' },
+      { header: 'EPS', dataKey: 'eps' },
+      { header: 'ACUDIENTE', dataKey: 'acudiente' },
+      { header: 'CONTACTOS', dataKey: 'contactos' },
+      { header: 'ESTADO', dataKey: 'estado' }
+    ];
+
+    // 2. Mapeo de datos (Concatenando apellidos, nombres y contactos)
+    const datosMapeados = filtrados.map(a => ({
+      doc: String(`${a.tipo_documento || ''} ${a.numero_documento || 'S/N'}`).trim(),
+      nombre_alumno: `${a.primer_apellido || ''} ${a.segundo_apellido || ''} ${a.primer_nombre || ''} ${a.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim().toUpperCase(),
+      categoria: String(a.categoria || 'N/A'),
+      rh: `${a.rh_grupo || ''}${a.rh_factor || ''}` || 'N/A',
+      eps: String(a.eps || 'N/A'),
+      acudiente: `${a.acudiente_primer_nombre || ''} ${a.acudiente_primer_apellido || ''} (${a.acudiente_parentesco || 'S/P'})`.replace(/\s+/g, ' ').trim().toUpperCase(),
+      contactos: `${a.contacto_1 || ''}${a.contacto_2 ? ' / ' + a.contacto_2 : ''}` || 'SIN TEL',
+      estado: String(a.estado || 'ACTIVO').toUpperCase()
+    }));
+
+    // 3. Llamada al servicio
+    generarReporteCEZEUS(tituloReporte, datosMapeados, columnasConfig);
+  };
+
   return (
     <div className="space-y-8 px-4">
       {!isAlumno && (
@@ -151,14 +185,25 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
               ))}
             </div>
 
-            <div className="flex flex-wrap gap-3 border-t border-white/5 pt-4">
-              <button onClick={() => setFiltroEstado(filtroEstado === 'ACTIVO' ? '' : 'ACTIVO')} className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all ${filtroEstado === 'ACTIVO' ? 'bg-emerald-500 border-emerald-500 text-black' : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/10'}`}>
-                <span className="text-[10px] font-black tracking-widest uppercase">ACTIVOS</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-black/10">{getCountStatus('ACTIVO')}</span>
-              </button>
-              <button onClick={() => setFiltroEstado(filtroEstado === 'INACTIVO' ? '' : 'INACTIVO')} className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all ${filtroEstado === 'INACTIVO' ? 'bg-rose-500 border-rose-500 text-black' : 'bg-rose-500/5 border-rose-500/20 text-rose-500 hover:bg-rose-500/10'}`}>
-                <span className="text-[10px] font-black tracking-widest uppercase">INACTIVOS</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-black/10">{getCountStatus('INACTIVO')}</span>
+            <div className="flex flex-wrap gap-3 border-t border-white/5 pt-4 items-center justify-between">
+              <div className="flex gap-3">
+                <button onClick={() => setFiltroEstado(filtroEstado === 'ACTIVO' ? '' : 'ACTIVO')} className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all ${filtroEstado === 'ACTIVO' ? 'bg-emerald-500 border-emerald-500 text-black' : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/10'}`}>
+                  <span className="text-[10px] font-black tracking-widest uppercase">ACTIVOS</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-black/10">{getCountStatus('ACTIVO')}</span>
+                </button>
+                <button onClick={() => setFiltroEstado(filtroEstado === 'INACTIVO' ? '' : 'INACTIVO')} className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border transition-all ${filtroEstado === 'INACTIVO' ? 'bg-rose-500 border-rose-500 text-black' : 'bg-rose-500/5 border-rose-500/20 text-rose-500 hover:bg-rose-500/10'}`}>
+                  <span className="text-[10px] font-black tracking-widest uppercase">INACTIVOS</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-black/10">{getCountStatus('INACTIVO')}</span>
+                </button>
+              </div>
+
+              {/* BOTÓN DE DESCARGA PDF */}
+              <button 
+                onClick={descargarReporteAlumnos}
+                className="flex items-center gap-3 px-6 py-2.5 rounded-xl bg-[#0a0f18]/40 border border-white/10 text-primary hover:bg-primary hover:text-black transition-all group"
+              >
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase">EXPORTAR PDF ({filtrados.length})</span>
               </button>
             </div>
           </div>
@@ -222,6 +267,7 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
         </div>
       )}
 
+      {/* MODAL DE EDICIÓN */}
       {editando && (
         <div className="fixed inset-0 bg-[#020617]/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <form onSubmit={guardarCambios} className="bg-[#0a0f18] border border-white/10 p-6 md:p-8 rounded-[2.5rem] w-full max-w-5xl max-h-[92vh] overflow-y-auto space-y-8 custom-scrollbar shadow-2xl">
@@ -235,7 +281,6 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
               </button>
             </div>
 
-            {/* SECCIÓN 1: ALUMNO */}
             <div className="space-y-6">
               <h4 className="text-primary text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">person</span> Datos del Alumno
@@ -254,7 +299,6 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
                   <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Apellido" value={editando.segundo_apellido || ''} onChange={e => setEditando({...editando, segundo_apellido: e.target.value.toUpperCase()})} />
                   <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="1er Nombre" value={editando.primer_nombre || ''} onChange={e => setEditando({...editando, primer_nombre: e.target.value.toUpperCase()})} />
                   <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Nombre" value={editando.segundo_nombre || ''} onChange={e => setEditando({...editando, segundo_nombre: e.target.value.toUpperCase()})} />
-                  
                   <div className="grid grid-cols-2 gap-2">
                     <select className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" value={editando.tipo_documento || ''} onChange={e => setEditando({...editando, tipo_documento: e.target.value})}>
                       <option value="">Tipo de documento</option>
@@ -262,7 +306,6 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
                     </select>
                     <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" placeholder="Documento" value={editando.numero_documento || ''} onChange={e => setEditando({...editando, numero_documento: e.target.value})} />
                   </div>
-                  
                   <div className="space-y-1">
                     <label className="text-[9px] text-slate-500 font-black uppercase ml-2 italic">Fecha de Nacimiento</label>
                     <input type="date" className="w-full bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none [color-scheme:dark]" value={editando.fecha_nacimiento || ''} onChange={e => manejarCambioFecha(e.target.value)} />
@@ -271,28 +314,24 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
               </div>
             </div>
 
-            {/* SECCIÓN 2: ACUDIENTE */}
             <div className="space-y-6 pt-4 border-t border-white/5">
               <h4 className="text-primary text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">groups</span> Datos del Acudiente
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="1er Apellido Acudiente" value={editando.acudiente_primer_apellido || ''} onChange={e => setEditando({...editando, acudiente_primer_apellido: e.target.value.toUpperCase()})} />
-                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Apellido Acudiente" value={editando.acudiente_segundo_apellido || ''} onChange={e => setEditando({...editando, acudiente_segundo_apellido: e.target.value.toUpperCase()})} />
-                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="1er Nombre Acudiente" value={editando.acudiente_primer_nombre || ''} onChange={e => setEditando({...editando, acudiente_primer_nombre: e.target.value.toUpperCase()})} />
-                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Nombre Acudiente" value={editando.acudiente_segundo_nombre || ''} onChange={e => setEditando({...editando, acudiente_segundo_nombre: e.target.value.toUpperCase()})} />
-                
+                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="1er Apellido" value={editando.acudiente_primer_apellido || ''} onChange={e => setEditando({...editando, acudiente_primer_apellido: e.target.value.toUpperCase()})} />
+                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Apellido" value={editando.acudiente_segundo_apellido || ''} onChange={e => setEditando({...editando, acudiente_segundo_apellido: e.target.value.toUpperCase()})} />
+                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="1er Nombre" value={editando.acudiente_primer_nombre || ''} onChange={e => setEditando({...editando, acudiente_primer_nombre: e.target.value.toUpperCase()})} />
+                <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white uppercase outline-none" placeholder="2do Nombre" value={editando.acudiente_segundo_nombre || ''} onChange={e => setEditando({...editando, acudiente_segundo_nombre: e.target.value.toUpperCase()})} />
                 <select className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" value={editando.acudiente_parentesco || ''} onChange={e => setEditando({...editando, acudiente_parentesco: e.target.value})}>
                   <option value="">Parentesco</option>
                   {PARENTESCOS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-
                 <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" placeholder="Contacto 1" value={editando.contacto_1 || ''} onChange={e => setEditando({...editando, contacto_1: e.target.value})} />
                 <input className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none md:col-span-2" placeholder="Contacto 2" value={editando.contacto_2 || ''} onChange={e => setEditando({...editando, contacto_2: e.target.value})} />
               </div>
             </div>
 
-            {/* SECCIÓN 3: SALUD */}
             <div className="space-y-6 pt-4 border-t border-white/5">
               <h4 className="text-primary text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">medical_services</span> Ficha de Salud
@@ -302,33 +341,19 @@ const GestorCarnetDigital = ({ user, alumnoPreseleccionado }: any) => {
                   <option value="">EPS</option>
                   {EPS_COLOMBIA.map(eps => <option key={eps} value={eps}>{eps}</option>)}
                 </select>
-
                 <select className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" value={editando.rh_grupo || ''} onChange={e => setEditando({...editando, rh_grupo: e.target.value})}>
                   <option value="">Grupo Sanguíneo</option>
                   {GRUPOS_RH.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-
-                {/* --- MODIFICACIÓN: FACTOR RH SINCRONIZADO --- */}
-                <select 
-                  className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" 
-                  value={
-                    editando.rh_factor?.includes('+') ? '+' : 
-                    editando.rh_factor?.includes('-') ? '-' : 
-                    editando.rh_factor || ''
-                  } 
-                  onChange={e => setEditando({...editando, rh_factor: e.target.value})}
-                >
+                <select className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" value={editando.rh_factor || ''} onChange={e => setEditando({...editando, rh_factor: e.target.value})}>
                   <option value="">Factor RH</option>
-                  {FACTORES_RH.map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
+                  {FACTORES_RH.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
-
                 <select className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none" value={editando.estado || 'ACTIVO'} onChange={e => setEditando({...editando, estado: e.target.value})}>
                   <option value="ACTIVO">ACTIVO</option>
                   <option value="INACTIVO">INACTIVO</option>
                 </select>
-                <textarea className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none md:col-span-4 h-20 resize-none" placeholder="Alergias o condiciones médicas..." value={editando.condiciones_medicas || ''} onChange={e => setEditando({...editando, condiciones_medicas: e.target.value})} />
+                <textarea className="bg-[#020617] border border-white/5 p-4 rounded-2xl text-xs text-white outline-none md:col-span-4 h-20 resize-none" placeholder="Condiciones médicas..." value={editando.condiciones_medicas || ''} onChange={e => setEditando({...editando, condiciones_medicas: e.target.value})} />
               </div>
             </div>
 
