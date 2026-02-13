@@ -2,9 +2,17 @@ import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { UserRole, Perfil, User } from '../types';
 import { useUsuarios } from '../hooks/useUsuarios';
-import { exportarUsuariosPDF } from '../lib/exportUtils';
-// IMPORTACIÓN DE VARIABLES CENTRALIZADAS
-import { EPS_COLOMBIA, TIPOS_DOCUMENTO, GRUPOS_RH, FACTORES_RH } from '../constants/data';
+import { generarReporteCEZEUS } from '../services/reportePDFService';
+
+// --- CONSTANTES ---
+const EPS_COLOMBIA = [
+  "Sura", "Sanitas", "Salud Total", "Nueva EPS", "Compensar", 
+  "Coosalud", "Mutual Ser", "Famisanar", "Aliansalud", "Ecopetrol",
+  "Capresoca", "Capital Salud", "Cajacopi", "Asmet Salud", "Emsanar",
+  "Pijaos Salud", "Saviasalud", "Ferrocarriles Nacionales", "Especial"
+].sort();
+
+const TIPOS_DOC = ['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte'];
 
 const Configuracion: React.FC = () => {
   const context = useOutletContext<{ user: User }>() || {};
@@ -18,7 +26,7 @@ const Configuracion: React.FC = () => {
   const initialForm = {
     nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '',
     email: '', password: '', rol: UserRole.ENTRENADOR, fecha_nacimiento: '',
-    telefono: '', tipo_documento: TIPOS_DOCUMENTO[0], numero_documento: '',
+    telefono: '', tipo_documento: 'Cédula de Ciudadanía', numero_documento: '',
     grupo_sanguineo: 'O', factor_rh: '+', eps: ''
   };
 
@@ -57,6 +65,27 @@ const Configuracion: React.FC = () => {
     const matchesRol = rolFiltro === 'TODOS' || u.rol === rolFiltro;
     return nombreFull && matchesRol;
   });
+
+  // --- LÓGICA DE EXPORTACIÓN ---
+  const handleExportarPDF = () => {
+    const columnas = [
+      { header: 'DOCUMENTO', dataKey: 'doc' },
+      { header: 'NOMBRE COMPLETO', dataKey: 'nombre' },
+      { header: 'ROL', dataKey: 'rol' },
+      { header: 'EPS', dataKey: 'eps' },
+      { header: 'ESTADO', dataKey: 'estado' }
+    ];
+
+    const datos = usuariosFiltrados.map(u => ({
+      doc: u.numero_documento,
+      nombre: `${u.primer_apellido} ${u.segundo_apellido || ''} ${u.nombre} ${u.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim().toUpperCase(),
+      rol: u.rol,
+      eps: u.eps || 'NO ASIGNADA',
+      estado: (u.telefono && u.eps) ? 'VERIFICADO' : 'PENDIENTE'
+    }));
+
+    generarReporteCEZEUS("Listado de Staff y Seguridad", datos, columnas);
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,12 +136,12 @@ const Configuracion: React.FC = () => {
                 <InputSimple label="2do Nombre" value={formData.segundo_nombre} onChange={(v:any) => setFormData({...formData, segundo_nombre: v})} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <SelectSimple label="Tipo Doc" value={formData.tipo_documento} options={TIPOS_DOCUMENTO} onChange={(v:any) => setFormData({...formData, tipo_documento: v})} />
+                <SelectSimple label="Tipo Doc" value={formData.tipo_documento} options={TIPOS_DOC} onChange={(v:any) => setFormData({...formData, tipo_documento: v})} />
                 <InputSimple label="N° Documento *" minLength={10} value={formData.numero_documento} onChange={(v:any) => setFormData({...formData, numero_documento: v})} required />
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <SelectSimple label="GS" value={formData.grupo_sanguineo} options={GRUPOS_RH} onChange={(v:any) => setFormData({...formData, grupo_sanguineo: v})} />
-                <SelectSimple label="RH" value={formData.factor_rh} options={FACTORES_RH} onChange={(v:any) => setFormData({...formData, factor_rh: v})} />
+                <SelectSimple label="GS" value={formData.grupo_sanguineo} options={['A', 'B', 'AB', 'O']} onChange={(v:any) => setFormData({...formData, grupo_sanguineo: v})} />
+                <SelectSimple label="RH" value={formData.factor_rh} options={['+', '-']} onChange={(v:any) => setFormData({...formData, factor_rh: v})} />
                 <InputSimple label="Nacimiento" type="date" value={formData.fecha_nacimiento} onChange={(v:any) => setFormData({...formData, fecha_nacimiento: v})} />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -141,17 +170,23 @@ const Configuracion: React.FC = () => {
               <input type="text" placeholder="BUSCAR POR NOMBRE O CC..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-[#0a0f18]/60 border border-white/5 rounded-2xl py-5 pl-14 pr-6 text-[10px] font-black text-white uppercase tracking-widest outline-none focus:ring-1 focus:ring-primary/40 transition-all backdrop-blur-md" />
             </div>
-            <button onClick={() => exportarUsuariosPDF(usuariosFiltrados)} className="bg-white/5 border border-white/10 p-5 rounded-2xl text-primary hover:bg-primary hover:text-black transition-all">
+            <button onClick={handleExportarPDF} className="bg-white/5 border border-white/10 p-5 rounded-2xl text-primary hover:bg-primary hover:text-black transition-all">
                 <span className="material-symbols-outlined">download</span>
             </button>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
             {['TODOS', ...ROLES_DISPONIBLES.map(r => r.value)].map((rol) => {
-              const count = rol === 'TODOS' 
-                ? usuarios.length 
-                : usuarios.filter(u => u.rol === rol).length;
+              const count = rol === 'TODOS' ? usuarios.length : usuarios.filter(u => u.rol === rol).length;
               
+              // Color de borde y texto según rol en cápsulas
+              const getRolStyle = (r: string) => {
+                if (r === UserRole.DIRECTOR) return 'border-amber-500/20 text-amber-400';
+                if (r === UserRole.SUPER_ADMIN) return 'border-purple-500/20 text-purple-400';
+                if (r === UserRole.ADMINISTRATIVO) return 'border-blue-500/20 text-blue-400';
+                return 'border-primary/20 text-primary';
+              };
+
               return (
                 <button 
                   key={rol} 
@@ -159,12 +194,12 @@ const Configuracion: React.FC = () => {
                   className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border whitespace-nowrap flex items-center gap-2 ${
                     rolFiltro === rol 
                       ? 'bg-primary text-black border-primary' 
-                      : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                      : `bg-white/5 hover:bg-white/10 ${getRolStyle(rol)}`
                   }`}
                 >
                   {rol}
                   <span className={`px-1.5 py-0.5 rounded-md text-[8px] ${
-                    rolFiltro === rol ? 'bg-black/20 text-black' : 'bg-primary/20 text-primary'
+                    rolFiltro === rol ? 'bg-black/20 text-black' : 'bg-white/5 text-slate-500'
                   }`}>
                     {count}
                   </span>
@@ -188,14 +223,7 @@ const Configuracion: React.FC = () => {
                 {fetching ? (
                   <tr><td colSpan={5} className="px-6 py-20 text-center text-[10px] font-black text-slate-500 uppercase animate-pulse">Sincronizando...</td></tr>
                 ) : usuariosFiltrados.map((u) => {
-                  
-                  const nombreCompleto = [
-                    u.primer_apellido,
-                    u.segundo_apellido,
-                    u.nombre,
-                    u.segundo_nombre
-                  ].filter(field => field && field.trim() !== "").join(' ');
-
+                  const nombreCompleto = [u.primer_apellido, u.segundo_apellido, u.nombre, u.segundo_nombre].filter(f => f?.trim()).join(' ');
                   const isVerified = u.telefono && u.eps && u.telefono.length >= 7;
 
                   return (
@@ -249,11 +277,9 @@ const Configuracion: React.FC = () => {
                                <span className="material-symbols-outlined text-[16px]">key</span>
                              </button>
                           )}
-                          {(currentUser.role === UserRole.SUPER_ADMIN || u.rol !== UserRole.SUPER_ADMIN) && (
-                            <button onClick={() => { setUsuarioAEditar(u); setIsModalOpen(true); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/50 text-slate-400 hover:text-primary transition-colors" title="Editar">
-                              <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                            </button>
-                          )}
+                          <button onClick={() => { setUsuarioAEditar(u); setIsModalOpen(true); }} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/50 text-slate-400 hover:text-primary transition-colors" title="Editar">
+                            <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                          </button>
                           {currentUser.role === UserRole.SUPER_ADMIN && (
                             <button onClick={() => eliminarUsuario(u.id, u.nombre)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800/50 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
                               <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -289,14 +315,14 @@ const Configuracion: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <SelectSimple label="Tipo Doc" value={usuarioAEditar.tipo_documento} options={TIPOS_DOCUMENTO} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, tipo_documento: v})} />
+                <SelectSimple label="Tipo Doc" value={usuarioAEditar.tipo_documento} options={TIPOS_DOC} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, tipo_documento: v})} />
                 <InputSimple label="N° Documento *" minLength={10} value={usuarioAEditar.numero_documento} onChange={(v:string) => setUsuarioAEditar({...usuarioAEditar, numero_documento: v})} required />
                 <SelectSimple label="Rol en Club *" value={usuarioAEditar.rol} options={ROLES_DISPONIBLES.map(r => r.value)} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, rol: v as UserRole})} />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <SelectSimple label="GS" value={usuarioAEditar.grupo_sanguineo} options={GRUPOS_RH} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, grupo_sanguineo: v})} />
-                <SelectSimple label="RH" value={usuarioAEditar.factor_rh} options={FACTORES_RH} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, factor_rh: v})} />
+                <SelectSimple label="GS" value={usuarioAEditar.grupo_sanguineo} options={['A', 'B', 'AB', 'O']} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, grupo_sanguineo: v})} />
+                <SelectSimple label="RH" value={usuarioAEditar.factor_rh} options={['+', '-']} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, factor_rh: v})} />
                 <InputSimple label="Nacimiento" type="date" value={usuarioAEditar.fecha_nacimiento} onChange={(v:string) => setUsuarioAEditar({...usuarioAEditar, fecha_nacimiento: v})} />
                 <SelectSimple label="EPS" value={usuarioAEditar.eps} options={EPS_COLOMBIA} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, eps: v})} />
               </div>
@@ -320,7 +346,6 @@ const Configuracion: React.FC = () => {
   );
 };
 
-// COMPONENTES AUXILIARES SIN CAMBIOS
 const InputSimple = ({ label, value, onChange, type = "text", required = false, minLength, pattern }: any) => (
   <div className="flex flex-col gap-1">
     <label className="text-[9px] font-black text-slate-500 uppercase ml-1 tracking-widest">{label}</label>

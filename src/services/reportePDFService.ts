@@ -27,7 +27,7 @@ export const generarReporteCEZEUS = async (
     doc.setFontSize(22);
     doc.setTextColor(22, 160, 133); // Verde Zeus (#16A085)
     doc.setFont('helvetica', 'bold');
-    doc.text("CENTRO DE ESTUDIOS ZEUS", 45, 22);
+    doc.text("Club Deportivo Cezeus", 45, 22);
 
     doc.setFontSize(11);
     doc.setTextColor(100);
@@ -90,7 +90,7 @@ export const generarReporteCEZEUS = async (
       doc.setFontSize(8);
       doc.setTextColor(150);
       doc.text(
-        `Página ${i} de ${pageCount} - Centro de Estudios Zeus - Sistema de Gestión Deportiva`,
+        `Página ${i} de ${pageCount} - Club Deportivo Cezeus - Sistema de Gestión Deportiva`,
         doc.internal.pageSize.getWidth() / 2,
         doc.internal.pageSize.getHeight() - 10,
         { align: 'center' }
