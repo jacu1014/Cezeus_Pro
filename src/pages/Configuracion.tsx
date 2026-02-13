@@ -3,13 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import { UserRole, Perfil, User } from '../types';
 import { useUsuarios } from '../hooks/useUsuarios';
 import { exportarUsuariosPDF } from '../lib/exportUtils';
-
-const EPS_COLOMBIA = [
-  "Sura", "Sanitas", "Salud Total", "Nueva EPS", "Compensar", 
-  "Coosalud", "Mutual Ser", "Famisanar", "Aliansalud", "Ecopetrol",
-  "Capresoca", "Capital Salud", "Cajacopi", "Asmet Salud", "Emsanar",
-  "Pijaos Salud", "Saviasalud", "Ferrocarriles Nacionales", "Especial"
-].sort();
+// IMPORTACIÓN DE VARIABLES CENTRALIZADAS
+import { EPS_COLOMBIA, TIPOS_DOCUMENTO, GRUPOS_RH, FACTORES_RH } from '../constants/data';
 
 const Configuracion: React.FC = () => {
   const context = useOutletContext<{ user: User }>() || {};
@@ -23,7 +18,7 @@ const Configuracion: React.FC = () => {
   const initialForm = {
     nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '',
     email: '', password: '', rol: UserRole.ENTRENADOR, fecha_nacimiento: '',
-    telefono: '', tipo_documento: 'Cédula de Ciudadanía', numero_documento: '',
+    telefono: '', tipo_documento: TIPOS_DOCUMENTO[0], numero_documento: '',
     grupo_sanguineo: 'O', factor_rh: '+', eps: ''
   };
 
@@ -112,12 +107,12 @@ const Configuracion: React.FC = () => {
                 <InputSimple label="2do Nombre" value={formData.segundo_nombre} onChange={(v:any) => setFormData({...formData, segundo_nombre: v})} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <SelectSimple label="Tipo Doc" value={formData.tipo_documento} options={['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte']} onChange={(v:any) => setFormData({...formData, tipo_documento: v})} />
+                <SelectSimple label="Tipo Doc" value={formData.tipo_documento} options={TIPOS_DOCUMENTO} onChange={(v:any) => setFormData({...formData, tipo_documento: v})} />
                 <InputSimple label="N° Documento *" minLength={10} value={formData.numero_documento} onChange={(v:any) => setFormData({...formData, numero_documento: v})} required />
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <SelectSimple label="GS" value={formData.grupo_sanguineo} options={['A', 'B', 'AB', 'O']} onChange={(v:any) => setFormData({...formData, grupo_sanguineo: v})} />
-                <SelectSimple label="RH" value={formData.factor_rh} options={['+', '-']} onChange={(v:any) => setFormData({...formData, factor_rh: v})} />
+                <SelectSimple label="GS" value={formData.grupo_sanguineo} options={GRUPOS_RH} onChange={(v:any) => setFormData({...formData, grupo_sanguineo: v})} />
+                <SelectSimple label="RH" value={formData.factor_rh} options={FACTORES_RH} onChange={(v:any) => setFormData({...formData, factor_rh: v})} />
                 <InputSimple label="Nacimiento" type="date" value={formData.fecha_nacimiento} onChange={(v:any) => setFormData({...formData, fecha_nacimiento: v})} />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -194,7 +189,6 @@ const Configuracion: React.FC = () => {
                   <tr><td colSpan={5} className="px-6 py-20 text-center text-[10px] font-black text-slate-500 uppercase animate-pulse">Sincronizando...</td></tr>
                 ) : usuariosFiltrados.map((u) => {
                   
-                  // Lógica de concatenación solicitada: Apellidos + Nombres (sin espacios si están vacíos)
                   const nombreCompleto = [
                     u.primer_apellido,
                     u.segundo_apellido,
@@ -202,7 +196,6 @@ const Configuracion: React.FC = () => {
                     u.segundo_nombre
                   ].filter(field => field && field.trim() !== "").join(' ');
 
-                  // Lógica de verificación: Se considera listo si tiene Teléfono y EPS
                   const isVerified = u.telefono && u.eps && u.telefono.length >= 7;
 
                   return (
@@ -296,14 +289,14 @@ const Configuracion: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <SelectSimple label="Tipo Doc" value={usuarioAEditar.tipo_documento} options={['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte']} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, tipo_documento: v})} />
+                <SelectSimple label="Tipo Doc" value={usuarioAEditar.tipo_documento} options={TIPOS_DOCUMENTO} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, tipo_documento: v})} />
                 <InputSimple label="N° Documento *" minLength={10} value={usuarioAEditar.numero_documento} onChange={(v:string) => setUsuarioAEditar({...usuarioAEditar, numero_documento: v})} required />
                 <SelectSimple label="Rol en Club *" value={usuarioAEditar.rol} options={ROLES_DISPONIBLES.map(r => r.value)} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, rol: v as UserRole})} />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <SelectSimple label="GS" value={usuarioAEditar.grupo_sanguineo} options={['A', 'B', 'AB', 'O']} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, grupo_sanguineo: v})} />
-                <SelectSimple label="RH" value={usuarioAEditar.factor_rh} options={['+', '-']} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, factor_rh: v})} />
+                <SelectSimple label="GS" value={usuarioAEditar.grupo_sanguineo} options={GRUPOS_RH} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, grupo_sanguineo: v})} />
+                <SelectSimple label="RH" value={usuarioAEditar.factor_rh} options={FACTORES_RH} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, factor_rh: v})} />
                 <InputSimple label="Nacimiento" type="date" value={usuarioAEditar.fecha_nacimiento} onChange={(v:string) => setUsuarioAEditar({...usuarioAEditar, fecha_nacimiento: v})} />
                 <SelectSimple label="EPS" value={usuarioAEditar.eps} options={EPS_COLOMBIA} onChange={(v:any) => setUsuarioAEditar({...usuarioAEditar, eps: v})} />
               </div>
@@ -327,6 +320,7 @@ const Configuracion: React.FC = () => {
   );
 };
 
+// COMPONENTES AUXILIARES SIN CAMBIOS
 const InputSimple = ({ label, value, onChange, type = "text", required = false, minLength, pattern }: any) => (
   <div className="flex flex-col gap-1">
     <label className="text-[9px] font-black text-slate-500 uppercase ml-1 tracking-widest">{label}</label>

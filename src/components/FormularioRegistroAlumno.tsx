@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+// IMPORTACIÓN DE VARIABLES CENTRALIZADAS
+import { EPS_COLOMBIA, TIPOS_DOCUMENTO, GRUPOS_RH, FACTORES_RH, PARENTESCOS } from '../constants/data';
 
 const FormularioRegistroAlumno: React.FC = () => {
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
@@ -68,58 +70,62 @@ const FormularioRegistroAlumno: React.FC = () => {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Error al crear credenciales.");
 
-      // 2. Subir Foto
-      let publicUrl = null;
+      // 2. Subir Foto y obtener URL pública ANTES del insert
+      let publicUrlFinal = null;
       if (fotoArchivo) {
         const fileExt = fotoArchivo.name.split('.').pop();
         const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `perfiles/${fileName}`;
+
         const { error: uploadError } = await supabase.storage
           .from('Fotos_Alumnos')
-          .upload(`perfiles/${fileName}`, fotoArchivo);
+          .upload(filePath, fotoArchivo);
 
         if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('Fotos_Alumnos').getPublicUrl(`perfiles/${fileName}`);
-          publicUrl = urlData.publicUrl;
+          const { data: urlData } = supabase.storage
+            .from('Fotos_Alumnos')
+            .getPublicUrl(filePath);
+          publicUrlFinal = urlData.publicUrl;
+        } else {
+          console.error("Error al subir imagen:", uploadError.message);
+          // Opcional: podrías decidir si lanzar error o continuar sin foto
         }
       }
 
-      // 3. Insertar en Tabla Alumnos
+      // 3. Insertar en Tabla Alumnos con la URL confirmada y datos normalizados
       const { error: dbError } = await supabase.from('alumnos').insert([{
         id: authData.user.id,
-        primer_apellido: formData.get('p_apellido'),
-        segundo_apellido: formData.get('s_apellido'),
-        primer_nombre: formData.get('p_nombre'),
-        segundo_nombre: formData.get('s_nombre'),
+        primer_apellido: (formData.get('p_apellido') as string)?.toUpperCase(),
+        segundo_apellido: (formData.get('s_apellido') as string)?.toUpperCase(),
+        primer_nombre: (formData.get('p_nombre') as string)?.toUpperCase(),
+        segundo_nombre: (formData.get('s_nombre') as string)?.toUpperCase(),
         tipo_documento: formData.get('t_doc'),
         numero_documento: formData.get('n_doc'),
         fecha_nacimiento: fechaNacimiento,
         categoria: categoriaAuto,
         email: email,
         rol: 'Alumno',
-        estado: 'activo', // Ajustado a minúsculas para cumplir con el CHECK CONSTRAINT de tu DB
+        estado: 'ACTIVO', // Normalizado en mayúsculas
         eps: formData.get('eps'),
         rh_grupo: formData.get('rh_g'),
         rh_factor: formData.get('rh_f'),
-        acudiente_primer_apellido: formData.get('a_p_apellido'),
-        acudiente_segundo_apellido: formData.get('a_s_apellido'),
-        acudiente_primer_nombre: formData.get('a_p_nombre'),
-        acudiente_segundo_nombre: formData.get('a_s_nombre'),
+        acudiente_primer_apellido: (formData.get('a_p_apellido') as string)?.toUpperCase(),
+        acudiente_segundo_apellido: (formData.get('a_s_apellido') as string)?.toUpperCase(),
+        acudiente_primer_nombre: (formData.get('a_p_nombre') as string)?.toUpperCase(),
+        acudiente_segundo_nombre: (formData.get('a_s_nombre') as string)?.toUpperCase(),
         acudiente_parentesco: parentesco === 'Otro' ? otroParentesco : parentesco,
         contacto_1: contacto1,
         contacto_2: contacto2,
         condiciones_medicas: formData.get('medicos'),
-        foto_url: publicUrl
+        foto_url: publicUrlFinal // Ahora sí llega con valor al Insert
       }]);
 
       if (dbError) throw dbError;
 
-      // ÉXITO: Limpieza total
       mostrarMensaje("✨ Alumno registrado con éxito", "success");
       
-      // Reset de formulario nativo
+      // Limpieza de formulario y estados
       form.reset(); 
-      
-      // Reset de estados de React (Lo que impedía la limpieza total)
       setFotoPreview(null);
       setFechaNacimiento('');
       setCategoriaAuto('Esperando fecha...');
@@ -130,7 +136,8 @@ const FormularioRegistroAlumno: React.FC = () => {
       if (fileInputRef.current) fileInputRef.current.value = '';
 
     } catch (err: any) {
-      mostrarMensaje(err.message, "error");
+      console.error("Error en el proceso:", err);
+      mostrarMensaje(err.message || "Error inesperado", "error");
     } finally {
       setLoading(false);
     }
@@ -166,7 +173,7 @@ const FormularioRegistroAlumno: React.FC = () => {
                 <Input name="s_apellido" label="Segundo Apellido" />
                 <Input name="p_nombre" label="* Primer Nombre" required />
                 <Input name="s_nombre" label="Segundo Nombre" />
-                <Select name="t_doc" label="* Tipo Documento" options={['Registro Civil', 'Tarjeta de Identidad', 'Cédula']} required />
+                <Select name="t_doc" label="* Tipo Documento" options={TIPOS_DOCUMENTO} required />
                 <Input name="n_doc" label="* Número Documento" required />
                 <div className="flex flex-col gap-1.5 w-full">
                   <label className="text-[9px] font-black text-primary uppercase ml-1 tracking-widest">Categoría Automática</label>
@@ -180,7 +187,6 @@ const FormularioRegistroAlumno: React.FC = () => {
             </div>
           </section>
 
-          {/* ... Secciones de Credenciales y Acudiente se mantienen igual ... */}
           <section className="space-y-6">
             <h3 className="text-primary font-black uppercase text-xs tracking-[0.2em] flex items-center gap-2 italic">
               <span className="material-symbols-outlined text-sm">lock</span> Credenciales de Acceso
@@ -203,7 +209,13 @@ const FormularioRegistroAlumno: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Select label="* Parentesco" value={parentesco} options={['Padre', 'Madre', 'Tio', 'Tia', 'Abuelo', 'Abuela', 'Otro']} required onChange={(e: any) => setParentesco(e.target.value)} />
+                <Select 
+                  label="* Parentesco" 
+                  value={parentesco} 
+                  options={PARENTESCOS} 
+                  required 
+                  onChange={(e: any) => setParentesco(e.target.value)} 
+                />
                 {parentesco === 'Otro' && (
                   <input type="text" placeholder="¿Cuál?" value={otroParentesco} onChange={(e) => setOtroParentesco(e.target.value)} className="w-full bg-primary/10 border border-primary/20 rounded-xl py-2 px-4 text-[11px] text-white outline-none animate-in fade-in" required />
                 )}
@@ -218,9 +230,9 @@ const FormularioRegistroAlumno: React.FC = () => {
               <span className="material-symbols-outlined text-sm">medical_information</span> Salud
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select name="eps" label="* EPS" options={['Sura', 'Salud Total', 'Sanitas', 'Compensar', 'Nueva EPS']} required />
-              <Select name="rh_g" label="* Grupo Sanguíneo" options={['A', 'AB', 'B', 'O']} required />
-              <Select name="rh_f" label="* Factor" options={['+', '-']} required />
+              <Select name="eps" label="* EPS" options={EPS_COLOMBIA} required />
+              <Select name="rh_g" label="* Grupo Sanguíneo" options={GRUPOS_RH} required />
+              <Select name="rh_f" label="* Factor" options={FACTORES_RH} required />
             </div>
             <textarea name="medicos" placeholder="Alergias o condiciones médicas..." className="w-full bg-slate-900 border border-white/5 rounded-[2rem] p-6 text-xs text-white outline-none focus:ring-1 focus:ring-primary h-24" />
           </section>
@@ -234,7 +246,7 @@ const FormularioRegistroAlumno: React.FC = () => {
   );
 };
 
-// Componentes Auxiliares con soporte para reset
+// Componentes Auxiliares (Input y Select)
 const Input = ({ label, name, type = "text", placeholder, value, onChange, required }: any) => (
   <div className="flex flex-col gap-1.5 w-full">
     <label className="text-[9px] font-black text-slate-500 uppercase ml-1 tracking-widest">{label}</label>
